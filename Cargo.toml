@@ -1,0 +1,20 @@
+[package]
+name = "proxyrs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.11", features = ["json", "trust-dns"] }
+tokio = { version = "1", features = ["full"] }
+scraper = "0.18"
+regex = "1"
+base64 = "0.21"
+rand = "0.8"
+log = "0.4"
+env_logger = "0.10"
+async-trait = "0.1"
+anyhow = "1.0"
+moka = { version = "0.12", features = ["future"] }
+once_cell = "1.18"
+serde = { version = "1.0", features = ["derive"] }
+futures = "0.3"
