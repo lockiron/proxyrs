@@ -1,6 +1,6 @@
 # proxyrs
 
-A Rust library to generate free proxies, inspired by and ported from the Go library [freeproxy](https://github.com/jkkwatcher/freeproxy).
+A Rust library to generate free proxies, inspired by and ported from the Go library [freeproxy](https://github.com/soluchok/freeproxy).
 
 It scrapes free proxy lists, verifies them against a test target (default: `httpbin.org`), and provides a stream of valid proxies.
 
