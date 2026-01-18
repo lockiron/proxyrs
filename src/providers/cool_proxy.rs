@@ -1,5 +1,6 @@
 use super::new_client;
 use crate::provider::Provider;
+use crate::proxy::{ProxyMetadata, ProxyType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
@@ -11,7 +12,7 @@ const COOL_PROXY_URL: &str = "https://www.cool-proxy.net/proxies/http_proxy_list
 
 pub struct CoolProxy {
     proxy: String,
-    proxy_list: Vec<String>,
+    proxy_list: Vec<ProxyMetadata>, // Changed from Vec<String>
     last_update: Option<Instant>,
 }
 
@@ -24,7 +25,7 @@ impl CoolProxy {
         }
     }
 
-    async fn load_internal(&mut self) -> Result<Vec<String>> {
+    async fn load_internal(&mut self) -> Result<Vec<ProxyMetadata>> {
         if let Some(last) = self.last_update {
              if last.elapsed() < Duration::from_secs(60 * 20) && !self.proxy_list.is_empty() {
                  return Ok(self.proxy_list.clone());
@@ -65,7 +66,12 @@ impl CoolProxy {
                      let rot13_decoded: String = encoded.as_str().chars().map(rot13).collect();
                      if let Ok(decoded_bytes) = general_purpose::STANDARD.decode(rot13_decoded) {
                          if let Ok(ip) = String::from_utf8(decoded_bytes) {
-                             result.push(format!("{}:{}", ip, ports[i]));
+                             // Assuming HTTP and Unknown country for now as we don't scrape them from cool-proxy yet
+                             result.push(ProxyMetadata {
+                                 addr: format!("{}:{}", ip, ports[i]),
+                                 kind: ProxyType::Http,
+                                 country: "Unknown".to_string(),
+                             });
                          }
                      }
                 }
@@ -80,7 +86,7 @@ impl CoolProxy {
 
 #[async_trait]
 impl Provider for CoolProxy {
-    async fn list(&mut self) -> Result<Vec<String>> {
+    async fn list(&mut self) -> Result<Vec<ProxyMetadata>> {
         self.load_internal().await
     }
 

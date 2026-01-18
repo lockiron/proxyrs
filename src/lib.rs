@@ -1,3 +1,5 @@
+pub mod proxy;
+pub mod filter;
 pub mod provider;
 pub mod proxy_generator;
 pub mod providers;

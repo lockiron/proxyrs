@@ -1,5 +1,6 @@
 use super::new_client;
 use crate::provider::Provider;
+use crate::proxy::{ProxyMetadata, ProxyType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use scraper::{Html, Selector};
@@ -9,7 +10,7 @@ const FREE_PROXY_LIST_URL: &str = "https://free-proxy-list.net/";
 
 pub struct FreeProxyList {
     proxy: String,
-    proxy_list: Vec<String>,
+    proxy_list: Vec<ProxyMetadata>,
     last_update: Option<Instant>,
 }
 
@@ -22,7 +23,7 @@ impl FreeProxyList {
         }
     }
 
-    async fn load_internal(&mut self) -> Result<Vec<String>> {
+    async fn load_internal(&mut self) -> Result<Vec<ProxyMetadata>> {
         if let Some(last) = self.last_update {
              if last.elapsed() < Duration::from_secs(60 * 20) && !self.proxy_list.is_empty() {
                  return Ok(self.proxy_list.clone());
@@ -39,46 +40,41 @@ impl FreeProxyList {
         let body = resp.text().await?;
 
         let doc = Html::parse_document(&body);
-        let ip_selector = Selector::parse(r#"#list table tbody tr td:nth-child(1)"#).unwrap();
-        // Fallback selector for different layout which sometimes happens on this site
-        let ip_selector_alt = Selector::parse(r#"table tbody tr td:nth-child(1)"#).unwrap();
+        let row_selector = Selector::parse(r#"#list table tbody tr"#).unwrap();
+        let row_selector_alt = Selector::parse(r#"table tbody tr"#).unwrap();
         
-        let mut ips = Vec::new();
-        // Try precise selector first
-        for element in doc.select(&ip_selector) {
-            ips.push(element.inner_html());
-        }
-        if ips.is_empty() {
-             for element in doc.select(&ip_selector_alt) {
-                ips.push(element.inner_html());
-            }
-        }
-
-        let port_selector = Selector::parse(r#"#list table tbody tr td:nth-child(2)"#).unwrap();
-        let port_selector_alt = Selector::parse(r#"table tbody tr td:nth-child(2)"#).unwrap();
-        
-        let mut ports = Vec::new();
-        for element in doc.select(&port_selector) {
-            ports.push(element.inner_html());
-        }
-        if ports.is_empty() {
-             for element in doc.select(&port_selector_alt) {
-                ports.push(element.inner_html());
-            }
-        }
-
-        if ips.is_empty() {
-            return Err(anyhow!("ip not found"));
-        }
-        if ips.len() != ports.len() {
-             // Sometimes table structure is weird, let's just take min length
-             // or error. Go code errors.
-             return Err(anyhow!("len port not equal ip: {} vs {}", ips.len(), ports.len()));
+        let mut rows: Vec<_> = doc.select(&row_selector).collect();
+        if rows.is_empty() {
+             rows = doc.select(&row_selector_alt).collect();
         }
 
         let mut result = Vec::new();
-        for (i, ip) in ips.iter().enumerate() {
-            result.push(format!("{}:{}", ip, ports[i]));
+        let td_selector = Selector::parse("td").unwrap();
+
+        for row in rows {
+            let cols: Vec<_> = row.select(&td_selector).collect();
+            if cols.len() >= 8 {
+                let ip = cols[0].inner_html();
+                let port = cols[1].inner_html();
+                let country_code = cols[2].inner_html(); // 3rd column: Code
+                let https = cols[6].inner_html();       // 7th column: Https (yes/no)
+
+                let kind = if https.to_lowercase() == "yes" {
+                    ProxyType::Https
+                } else {
+                    ProxyType::Http
+                };
+
+                result.push(ProxyMetadata {
+                    addr: format!("{}:{}", ip, port),
+                    kind,
+                    country: country_code,
+                });
+            }
+        }
+
+        if result.is_empty() {
+            return Err(anyhow!("proxies not found"));
         }
 
         self.proxy_list = result.clone();
@@ -89,7 +85,7 @@ impl FreeProxyList {
 
 #[async_trait]
 impl Provider for FreeProxyList {
-    async fn list(&mut self) -> Result<Vec<String>> {
+    async fn list(&mut self) -> Result<Vec<ProxyMetadata>> {
         self.load_internal().await
     }
 

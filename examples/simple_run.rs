@@ -13,6 +13,11 @@ async fn main() {
     generator.add_provider(CoolProxy::new());
     generator.add_provider(FreeProxyList::new());
 
+    // Set filter: Only HTTPS proxies
+    use proxyrs::filter::ProxyFilter;
+    use proxyrs::proxy::ProxyType;
+    generator.set_filter(ProxyFilter::new().with_proxy_types(vec![ProxyType::Https])).await;
+
     // Run generator
     generator.run().await;
 
