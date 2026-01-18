@@ -2,6 +2,9 @@
 name = "proxyrs"
 version = "0.1.0"
 edition = "2021"
+description = "A Rust library to generate free proxies, inspired by and ported from the Go library freeproxy."
+license = "MIT"
+authors = ["lockiron"]
 
 [dependencies]
 reqwest = { version = "0.11", features = ["json", "trust-dns"] }
