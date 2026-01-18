@@ -75,6 +75,7 @@ pub async fn verify_proxy(proxy: &str) -> Option<Duration> {
     let client = match Client::builder()
         .proxy(proxy_url)
         .timeout(Duration::from_secs(2))
+        .pool_max_idle_per_host(0) // Disable pooling for one-off requests
         .build()
     {
         Ok(client) => client,

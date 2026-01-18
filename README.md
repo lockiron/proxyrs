@@ -66,13 +66,27 @@ async fn main() {
 You can run the included binary to fetch and print a valid proxy:
 
 ```bash
-cargo run
+# Get any proxy
+cargo run --example simple_run
+
+# Get an HTTPS proxy from US
+cargo run --example simple_run -- --type https --country US
+
+# Get a proxy excluding US with max latency 500ms
+cargo run --example simple_run -- --exclude-country US --max-latency-ms 500
+
+# Set a timeout of 10 seconds
+cargo run --example simple_run -- --timeout-s 10
+
+# Get 3 unique proxies
+cargo run --example simple_run -- --limit 3
 ```
 
 This will output something like:
 ```text
 [INFO  proxyrs::proxy_generator] free-proxy-list.net found ips 300
-Found proxy: 123.45.67.89:8080 (HTTPS, US) - 312ms via free-proxy-list.net
+Applying filter: ProxyFilter { proxy_types: Some([Https]), include_countries: Some(["US"]), exclude_countries: None, max_latency: Some(2s) }
+Found proxy: 154.3.236.202:3128 (HTTPS, US) - 823.401708ms via free-proxy-list.net
 ```
 
 ## Detailed Information

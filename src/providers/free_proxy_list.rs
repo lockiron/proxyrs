@@ -1,36 +1,30 @@
+use super::base::BaseProvider;
 use super::new_client;
 use crate::provider::Provider;
 use crate::proxy::{ProxyMetadata, ProxyType};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use scraper::{Html, Selector};
-use std::time::{Duration, Instant};
 
 const FREE_PROXY_LIST_URL: &str = "https://free-proxy-list.net/";
 
 pub struct FreeProxyList {
-    proxy: String,
-    proxy_list: Vec<ProxyMetadata>,
-    last_update: Option<Instant>,
+    base: BaseProvider,
 }
 
 impl FreeProxyList {
     pub fn new() -> Self {
         Self {
-            proxy: String::new(),
-            proxy_list: Vec::new(),
-            last_update: None,
+            base: BaseProvider::new(),
         }
     }
 
     async fn load_internal(&mut self) -> Result<Vec<ProxyMetadata>> {
-        if let Some(last) = self.last_update {
-             if last.elapsed() < Duration::from_secs(60 * 20) && !self.proxy_list.is_empty() {
-                 return Ok(self.proxy_list.clone());
-             }
+        if !self.base.should_update() {
+             return Ok(self.base.cached_list());
         }
 
-        let client = new_client(if self.proxy.is_empty() { None } else { Some(&self.proxy) })?;
+        let client = new_client(if self.base.proxy_upstream.is_empty() { None } else { Some(&self.base.proxy_upstream) })?;
         
         let resp = client.get(FREE_PROXY_LIST_URL)
             .header("Accept-Language", "en-US,en;q=0.8")
@@ -77,8 +71,7 @@ impl FreeProxyList {
             return Err(anyhow!("proxies not found"));
         }
 
-        self.proxy_list = result.clone();
-        self.last_update = Some(Instant::now());
+        self.base.update_cache(result.clone());
         Ok(result)
     }
 }
@@ -94,6 +87,6 @@ impl Provider for FreeProxyList {
     }
 
     fn set_proxy(&mut self, proxy: String) {
-        self.proxy = proxy;
+        self.base.proxy_upstream = proxy;
     }
 }

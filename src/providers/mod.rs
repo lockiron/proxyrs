@@ -1,3 +1,4 @@
+pub mod base;
 pub mod cool_proxy;
 pub mod free_proxy_list;
 

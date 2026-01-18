@@ -1,3 +1,4 @@
+use super::base::BaseProvider;
 use super::new_client;
 use crate::provider::Provider;
 use crate::proxy::{ProxyMetadata, ProxyType};
@@ -6,33 +7,26 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
 use regex::Regex;
 use scraper::{Html, Selector};
-use std::time::{Duration, Instant};
 
 const COOL_PROXY_URL: &str = "https://www.cool-proxy.net/proxies/http_proxy_list/sort:score/direction:desc";
 
 pub struct CoolProxy {
-    proxy: String,
-    proxy_list: Vec<ProxyMetadata>, // Changed from Vec<String>
-    last_update: Option<Instant>,
+    base: BaseProvider,
 }
 
 impl CoolProxy {
     pub fn new() -> Self {
         Self {
-            proxy: String::new(),
-            proxy_list: Vec::new(),
-            last_update: None,
+            base: BaseProvider::new(),
         }
     }
 
     async fn load_internal(&mut self) -> Result<Vec<ProxyMetadata>> {
-        if let Some(last) = self.last_update {
-             if last.elapsed() < Duration::from_secs(60 * 20) && !self.proxy_list.is_empty() {
-                 return Ok(self.proxy_list.clone());
-             }
+        if !self.base.should_update() {
+             return Ok(self.base.cached_list());
         }
 
-        let client = new_client(if self.proxy.is_empty() { None } else { Some(&self.proxy) })?;
+        let client = new_client(if self.base.proxy_upstream.is_empty() { None } else { Some(&self.base.proxy_upstream) })?;
         let resp = client.get(COOL_PROXY_URL).send().await?;
         let body = resp.text().await?;
 
@@ -51,7 +45,8 @@ impl CoolProxy {
         }
 
         if ips.is_empty() {
-            return Err(anyhow!("ip not found"));
+             // Keep old cache if update fails? Or just return error
+             return Err(anyhow!("ip not found"));
         }
         if ips.len() != ports.len() {
              return Err(anyhow!("len port not equal ip"));
@@ -66,11 +61,10 @@ impl CoolProxy {
                      let rot13_decoded: String = encoded.as_str().chars().map(rot13).collect();
                      if let Ok(decoded_bytes) = general_purpose::STANDARD.decode(rot13_decoded) {
                          if let Ok(ip) = String::from_utf8(decoded_bytes) {
-                             // Assuming HTTP and Unknown country for now as we don't scrape them from cool-proxy yet
                              result.push(ProxyMetadata {
                                  addr: format!("{}:{}", ip, ports[i]),
                                  kind: ProxyType::Http,
-                                 country: "Unknown".to_string(),
+                                 country: "Unknown".to_string(), // Still unknown for cool-proxy
                              });
                          }
                      }
@@ -78,8 +72,7 @@ impl CoolProxy {
             }
         }
 
-        self.proxy_list = result.clone();
-        self.last_update = Some(Instant::now());
+        self.base.update_cache(result.clone());
         Ok(result)
     }
 }
@@ -95,7 +88,7 @@ impl Provider for CoolProxy {
     }
 
     fn set_proxy(&mut self, proxy: String) {
-        self.proxy = proxy;
+        self.base.proxy_upstream = proxy;
     }
 }
 

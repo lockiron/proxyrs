@@ -14,6 +14,8 @@ use futures::future::BoxFuture;
 
 pub type VerifyFn = fn(&str) -> BoxFuture<'static, bool>;
 
+use tokio::sync::Semaphore;
+
 pub struct ProxyGenerator {
     cache: Cache<String, Option<Duration>>, // Cache stores latency if valid
     filter: Arc<Mutex<ProxyFilter>>,
@@ -22,6 +24,7 @@ pub struct ProxyGenerator {
     proxy_rx: Arc<Mutex<Receiver<Proxy>>>,
     job_tx: Sender<(ProxyMetadata, String)>, // Metadata and Provider Name
     last_valid_proxy: Arc<Mutex<Option<Proxy>>>,
+    semaphore: Arc<Semaphore>, // Limit concurrent verifications
 }
 
 impl ProxyGenerator {
@@ -39,19 +42,26 @@ impl ProxyGenerator {
             proxy_rx: Arc::new(Mutex::new(proxy_rx)),
             job_tx,
             last_valid_proxy: Arc::new(Mutex::new(None)),
+            semaphore: Arc::new(Semaphore::new(200)), // Max 200 concurrent verifications
         };
 
         // Spawn workers
         let cache_clone = generator.cache.clone();
         let proxy_tx_clone = generator.proxy_tx.clone();
         let filter_clone = generator.filter.clone();
+        let semaphore_clone = generator.semaphore.clone();
         
         tokio::spawn(async move {
             while let Some((metadata, provider_name)) = job_rx.recv().await {
                 let cache = cache_clone.clone();
                 let tx = proxy_tx_clone.clone();
                 let filter = filter_clone.clone();
+                let permit = semaphore_clone.clone().acquire_owned().await.unwrap();
+
                 tokio::spawn(async move {
+                    // Drop permit when this future completes
+                    let _permit = permit;
+                    
                     if let Some(latency) = verify_with_cache(cache, &metadata.addr).await {
                          let proxy = Proxy {
                              addr: metadata.addr,
