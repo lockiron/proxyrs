@@ -3,6 +3,9 @@ use proxyrs::ProxyGenerator;
 use proxyrs::filter::ProxyFilter;
 use proxyrs::providers::cool_proxy::CoolProxy;
 use proxyrs::providers::free_proxy_list::FreeProxyList;
+use proxyrs::providers::cybersyndrome::Cybersyndrome;
+use proxyrs::providers::proxyscrape::ProxyScrape;
+use proxyrs::configuration::Settings;
 use proxyrs::proxy::ProxyType;
 use std::time::Duration;
 
@@ -61,9 +64,45 @@ async fn main() {
 
     let mut generator = ProxyGenerator::new();
     
-    // Add providers
-    generator.add_provider(CoolProxy::new());
-    generator.add_provider(FreeProxyList::new());
+    // Load configuration
+    match Settings::new() {
+        Ok(settings) => {
+             // Cybersyndrome
+            if let Some(conf) = settings.providers.cybersyndrome {
+                if conf.enabled {
+                    generator.add_provider(Cybersyndrome::new());
+                }
+            }
+
+            // ProxyScrape
+            if let Some(conf) = settings.providers.proxyscrape {
+                if conf.enabled {
+                    generator.add_provider(ProxyScrape::new());
+                }
+            }
+
+            // CoolProxy
+            if let Some(conf) = settings.providers.cool_proxy {
+                 if conf.enabled {
+                    generator.add_provider(CoolProxy::new());
+                }
+            }
+
+            // FreeProxyList
+            if let Some(conf) = settings.providers.free_proxy_list {
+                 if conf.enabled {
+                    generator.add_provider(FreeProxyList::new());
+                }
+            }
+        },
+        Err(e) => {
+             println!("Warning: Failed to load config.toml: {}. Using default providers.", e);
+             generator.add_provider(Cybersyndrome::new());
+             generator.add_provider(ProxyScrape::new());
+             generator.add_provider(CoolProxy::new());
+             generator.add_provider(FreeProxyList::new());
+        }
+    }
 
     // Build filter from args
     let mut filter = ProxyFilter::new()

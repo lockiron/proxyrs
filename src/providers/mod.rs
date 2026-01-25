@@ -1,6 +1,8 @@
 pub mod base;
 pub mod cool_proxy;
 pub mod free_proxy_list;
+pub mod cybersyndrome;
+pub mod proxyscrape;
 
 // Common HTTP client construction if needed, or re-use logic
 use reqwest::Client;

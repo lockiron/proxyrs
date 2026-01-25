@@ -99,10 +99,17 @@ impl ProxyGenerator {
         let last_valid_proxy = self.last_valid_proxy.clone();
         let filter_mutex = self.filter.clone();
 
-        tokio::spawn(async move {
-            loop {
-                for provider in &providers {
-                    let mut provider_guard = provider.lock().await;
+        for provider in providers {
+            let provider = provider.clone();
+            let job_tx = job_tx.clone();
+            let last_valid_proxy = last_valid_proxy.clone();
+            let filter_mutex = filter_mutex.clone();
+
+            tokio::spawn(async move {
+                loop {
+                    let mut provider_guard = provider.lock().await; // Lock individual provider
+                    
+                    // Set upstream proxy if available
                     let last_valid = last_valid_proxy.lock().await.clone();
                     if let Some(valid_proxy) = last_valid {
                          provider_guard.set_proxy(valid_proxy.addr);
@@ -133,14 +140,18 @@ impl ProxyGenerator {
                         }
                         Err(e) => {
                              error!("cannot load list of proxy {} err:{}", provider_guard.name(), e);
+                             // If a provider fails, maybe the upstream proxy is bad?
                              let mut last_valid = last_valid_proxy.lock().await;
                              *last_valid = None;
                         }
                     }
+                    // Release lock before sleeping
+                    drop(provider_guard); 
+                    
+                    tokio::time::sleep(Duration::from_secs(1)).await; // Loop frequently 
                 }
-                tokio::time::sleep(Duration::from_secs(1)).await; // Loop frequently to replenish jobs
-            }
-        });
+            });
+        }
     }
 
     pub async fn get(&self) -> Option<Proxy> {

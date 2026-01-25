@@ -1,0 +1,12 @@
+[providers.cool_proxy]
+enabled = true
+
+[providers.free_proxy_list]
+enabled = true
+
+[providers.cybersyndrome]
+enabled = true
+url = "https://www.cybersyndrome.net/plr6.html"
+
+[providers.proxyscrape]
+enabled = true
